@@ -1,0 +1,110 @@
+import {expect} from 'chai'
+
+describe("Testing Online Shop", () => {
+
+   /*
+ it has logic but it didn't work for me...
+   beforeEach(async function () {
+        const onlineShop = await ethers.getContractFactory("OnlineShop")
+        const instanceShop = await onlineShop.deploy()
+
+        await instanceShop.deployed()
+
+        let accounts = []
+        let [address1, address2, address3] = await ethers.getSigners()
+        accounts.push(address1, address2, address3)
+    })*/
+
+    it ("Test modifying items, add, enable, disabled, remove, edit.",async () => {
+        const onlineShop = await ethers.getContractFactory("OnlineShop")
+        const instanceShop = await onlineShop.deploy()
+
+        await instanceShop.deployed()
+
+        let accounts: any[] = []
+        let [address1, address2, address3] = await ethers.getSigners()
+        accounts.push(address1, address2, address3)
+
+        // adding a new item, expecting the before item sku should be less than new item sku
+        await instanceShop.connect(address1).add_item('BMW m5', 'my_image.com', 'ultra car', 5, 3, 16000);
+        let bmw_sku = await instanceShop.SKU()
+
+       await instanceShop.connect(address1).add_item('CUP', 'my_image.com', 'red cup', 1, 1, 500);
+       let cup_sku = await instanceShop.SKU()
+
+        let condition = parseInt(bmw_sku) < parseInt(cup_sku)
+        expect(condition).to.be.equal(true)
+        
+        // try to add an item without being the admin, it should throw an error
+        try {
+           await instanceShop.connect(address2).add_item('audi a5', 'my_image.com', 'ultra car', 5, 3, 16000);
+        } catch (error: any) {
+            expect(error).to.be.instanceOf(Error)
+            
+        }
+        
+        // try to buy an item without enough funds. (0 points and 0 ethers)
+        try {
+            await instanceShop.connect(address3).purchase_item(cup_sku, {value: 0})
+        } catch (error: any) {
+            expect(error).to.be.instanceOf(Error)
+            
+        }
+
+        // edit item being admin
+        try {
+            await instanceShop.connect(address1).edit_item(bmw_sku, 'bmw2', '',' ', 4, 10, 15, true)
+            console.log("Item modified!")
+        } catch (error) {
+            expect(error).to.be.instanceOf(Error)
+            
+        }
+
+        // trying to edit an item without being admin
+        try {
+            await instanceShop.connect(address3).edit_item(bmw_sku, 'bmw2', '',' ', 4, 1, 1, true)
+        } catch (error) {
+            expect(error).to.be.instanceOf(Error)
+            
+        }
+
+        let addr2_balance: number = parseInt(await address2.getBalance())
+        // try to buy and item with enough funds (ether)
+       try {
+            await instanceShop.connect(address2).purchase_item(bmw_sku, {value:ethers.utils.parseEther("1000")})
+            console.log("BMW BOUGHT!")
+        } catch (error) {
+            expect(error).to.be.instanceOf(Error)
+            
+        }
+
+        let addr2_new_balance: number = parseInt(await address2.getBalance())
+        let less_balance = addr2_new_balance < addr2_balance
+        console.log('old: '+ addr2_balance)
+        console.log(addr2_new_balance)
+        expect(less_balance).to.be.equal(true)
+
+        // try to buy and item with points 
+        try {
+            await instanceShop.connect(address2).purchase_item(cup_sku)
+            console.log("CUP BOUGHT!")
+        } catch (error) {
+            expect(error).to.be.instanceOf(Error)
+        }       
+
+        let before_balance = await address1.getBalance()
+
+        // try to withdraw ethers from contract (only owner)
+        try {
+            await instanceShop.connect(address1).withdraw()
+            console.log("withdrawing money")
+        } catch(error) {
+            expect(error).to.be.instanceOf(Error)
+        }
+
+        let after_balance = await address1.getBalance()
+
+        expect(parseInt(before_balance) < parseInt(after_balance)).to.be.true
+
+    })
+})
